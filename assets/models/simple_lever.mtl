@@ -1,0 +1,11 @@
+# Blender 4.4.3 MTL File: 'The Machine That Does The Work.blend'
+# www.blender.org
+
+newmtl Blue_Metal
+Kd 0.300000 0.650000 0.900000
+
+newmtl Material_0.001
+Kd 0.900000 0.100000 0.100000
+
+newmtl Material.001
+Kd 0.100000 0.500000 0.450000
