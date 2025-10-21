@@ -37,6 +37,9 @@ class _CubeGameScreenState extends State<CubeGameScreen>
   DateTime _lastDirectionChangeTime = DateTime.now();
   DateTime _lastWiggleTime = DateTime.now().subtract(const Duration(seconds: 3)); // Allow immediate first wiggle
 
+  // Rotation event detection
+  bool _hasReachedMaxRotation = false;
+
   @override
   void initState() {
     super.initState();
@@ -131,13 +134,15 @@ class _CubeGameScreenState extends State<CubeGameScreen>
               _directionChanges = 0; // Reset after detecting wiggle
               _lastWiggleTime = now; // Update last wiggle time
 
-              // Advance to next level
-              if (_currentLevelIndex < LevelSettings.levels.length - 1) {
+              // Check if current level's event is 'wiggle' before advancing
+              if (_levelSettings.event == 'wiggle' && _currentLevelIndex < LevelSettings.levels.length - 1) {
                 _currentLevelIndex++;
                 print('Level advanced to $_currentLevelIndex');
 
                 // Update bulb brightness based on level settings
                 _changeBulbColor(0.0, _levelSettings.brightness, 0.0);
+              } else if (_levelSettings.event != 'wiggle') {
+                print('Wiggle detected but current level event is: ${_levelSettings.event}');
               }
             } else {
               print('Wiggle detected but cooldown active (${2000 - timeSinceLastWiggle}ms remaining)');
@@ -150,6 +155,27 @@ class _CubeGameScreenState extends State<CubeGameScreen>
 
         _lastDirectionSign = currentDirectionSign;
         _lastPositionX = newPositionX;
+      }
+
+      // Check for rotation event - detect when rotation reaches max
+      if (_levelSettings.event == 'rotation' && !_hasReachedMaxRotation) {
+        // Check if rotation is at or very close to max (within 0.1 radians)
+        if (newRotationX >= _levelSettings.maxRotation - 0.1) {
+          _hasReachedMaxRotation = true;
+          print('REACHED MAX ROTATION');
+
+          // Advance to next level
+          if (_currentLevelIndex < LevelSettings.levels.length - 1) {
+            _currentLevelIndex++;
+            print('Level advanced to $_currentLevelIndex');
+
+            // Update bulb brightness based on level settings
+            _changeBulbColor(0.0, _levelSettings.brightness, 0.0);
+
+            // Reset for next level
+            _hasReachedMaxRotation = false;
+          }
+        }
       }
 
       _updateLeverTransform(newRotationX, newPositionX);

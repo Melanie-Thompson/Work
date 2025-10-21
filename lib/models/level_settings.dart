@@ -6,6 +6,7 @@ class LevelSettings {
   final double minRotation;
   final double maxRotation;
   final double brightness;
+  final String event;
 
   const LevelSettings({
     required this.minX,
@@ -15,6 +16,7 @@ class LevelSettings {
     required this.minRotation,
     required this.maxRotation,
     required this.brightness,
+    required this.event,
   });
 
   // Array of level settings
@@ -28,6 +30,7 @@ class LevelSettings {
       minRotation: 0,
       maxRotation: 30,
       brightness: 0.2,
+      event: 'wiggle',
     ),
     // Level 1
     LevelSettings(
@@ -38,6 +41,7 @@ class LevelSettings {
       minRotation: 0,
       maxRotation: 30,
       brightness: 0.5,
+      event: 'wiggle',
     ),
     // Level 2
     LevelSettings(
@@ -48,6 +52,18 @@ class LevelSettings {
       minRotation: 0,
       maxRotation: 30,
       brightness: 1,
+      event: 'rotation',
+    ),
+    // Level 3
+    LevelSettings(
+      minX: -0.1,
+      maxX: 0.13,
+      minY: 0,
+      maxY: 30,
+      minRotation: 0,
+      maxRotation: 30,
+      brightness: 2,
+      event: 'rotation',
     ),
   ];
 }
