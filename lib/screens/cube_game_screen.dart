@@ -11,9 +11,12 @@ class CubeGameScreen extends StatefulWidget {
 }
 
 class _CubeGameScreenState extends State<CubeGameScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _leverRotation;
+  late AnimationController _resetAnimationController;
+  late Animation<double> _resetRotationAnimation;
+  late Animation<double> _resetPositionAnimation;
   Object? _leverPivot;
   Object? _lever;
   Object? _greenBulb;
@@ -53,6 +56,23 @@ class _CubeGameScreenState extends State<CubeGameScreen>
     _leverRotation.addListener(() {
       if (_leverPivot != null && !_isDragging) {
         _updateLeverTransform(_leverRotation.value, _currentPositionX);
+      }
+    });
+
+    // Reset animation controller for level transitions
+    _resetAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _resetRotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(
+      CurvedAnimation(parent: _resetAnimationController, curve: Curves.easeInOutCubic),
+    );
+    _resetPositionAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(
+      CurvedAnimation(parent: _resetAnimationController, curve: Curves.easeInOutCubic),
+    );
+    _resetAnimationController.addListener(() {
+      if (_leverPivot != null) {
+        _updateLeverTransform(_resetRotationAnimation.value, _resetPositionAnimation.value);
       }
     });
   }
@@ -97,6 +117,11 @@ class _CubeGameScreenState extends State<CubeGameScreen>
   void _onDragUpdate(DragUpdateDetails details) {
     if (_dragStartPos == null) return;
 
+    // Lock dragging if we're on the last level with no event
+    if (_currentLevelIndex >= LevelSettings.levels.length - 1 && _levelSettings.event == 'none') {
+      return;
+    }
+
     setState(() {
       final deltaY = details.localPosition.dy - _dragStartPos!.dy;
       final deltaX = details.localPosition.dx - _dragStartPos!.dx;
@@ -112,6 +137,8 @@ class _CubeGameScreenState extends State<CubeGameScreen>
           .clamp(_levelSettings.minX, _levelSettings.maxX);
 
       print('DRAG UPDATE - deltaX: $deltaX, deltaY: $deltaY, newRotX: $newRotationX, newPosX: $newPositionX');
+
+      bool levelChanged = false;
 
       // Detect wiggle - fast back-and-forth in X direction
       final deltaFromLast = newPositionX - _lastPositionX;
@@ -141,6 +168,10 @@ class _CubeGameScreenState extends State<CubeGameScreen>
 
                 // Update bulb brightness based on level settings
                 _changeBulbColor(0.0, _levelSettings.brightness, 0.0);
+
+                // Animate lever to start position for new level
+                _animateToResetPosition(_levelSettings.startRotationX, _levelSettings.startPositionX);
+                levelChanged = true;
               } else if (_levelSettings.event != 'wiggle') {
                 print('Wiggle detected but current level event is: ${_levelSettings.event}');
               }
@@ -172,13 +203,19 @@ class _CubeGameScreenState extends State<CubeGameScreen>
             // Update bulb brightness based on level settings
             _changeBulbColor(0.0, _levelSettings.brightness, 0.0);
 
+            // Animate lever to start position for new level
+            _animateToResetPosition(_levelSettings.startRotationX, _levelSettings.startPositionX);
+            levelChanged = true;
+
             // Reset for next level
             _hasReachedMaxRotation = false;
           }
         }
       }
 
-      _updateLeverTransform(newRotationX, newPositionX);
+      if (!levelChanged) {
+        _updateLeverTransform(newRotationX, newPositionX);
+      }
     });
   }
 
@@ -215,9 +252,36 @@ class _CubeGameScreenState extends State<CubeGameScreen>
     });
   }
 
+  void _animateToResetPosition(double targetRotationX, double targetPositionX) {
+    // Update the animation tweens with current and target values
+    _resetRotationAnimation = Tween<double>(
+      begin: _currentRotationX,
+      end: targetRotationX,
+    ).animate(
+      CurvedAnimation(parent: _resetAnimationController, curve: Curves.easeInOutCubic),
+    );
+    _resetPositionAnimation = Tween<double>(
+      begin: _currentPositionX,
+      end: targetPositionX,
+    ).animate(
+      CurvedAnimation(parent: _resetAnimationController, curve: Curves.easeInOutCubic),
+    );
+
+    // Reset and start the animation
+    _resetAnimationController.reset();
+    _resetAnimationController.forward().then((_) {
+      // Update final values after animation completes
+      _currentRotationX = targetRotationX;
+      _currentPositionX = targetPositionX;
+      _dragStartRotationX = targetRotationX;
+      _dragStartPositionX = targetPositionX;
+    });
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
+    _resetAnimationController.dispose();
     super.dispose();
   }
 
