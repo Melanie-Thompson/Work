@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_cube/flutter_cube.dart';
 import 'dart:math' as math;
+import '../models/level_settings.dart';
 
 class CubeGameScreen extends StatefulWidget {
   const CubeGameScreen({super.key});
@@ -17,13 +18,15 @@ class _CubeGameScreenState extends State<CubeGameScreen>
   Object? _lever;
   Scene? _scene;
   bool _isPulled = false;
-  
+
   double _currentRotationX = 0.0;
   double _currentPositionX = 0.0;
   bool _isDragging = false;
   Offset? _dragStartPos;
   double _dragStartRotationX = 0.0;
   double _dragStartPositionX = 0.0;
+
+  final LevelSettings _levelSettings = LevelSettings.level1;
 
   @override
   void initState() {
@@ -52,10 +55,11 @@ class _CubeGameScreenState extends State<CubeGameScreen>
 
     // Rotate around X axis for up/down motion
     _leverPivot!.rotation.setValues(angleX, 0, 0);
-    
-    // Slide in X direction, centered at origin
-    _leverPivot!.position.setValues(positionX, 0, 0);
-    
+
+    // Get current position and only update X, preserve Y and Z
+    final currentPos = _leverPivot!.position;
+    _leverPivot!.position.setValues(positionX, currentPos.y, currentPos.z);
+
     _leverPivot!.updateTransform();
     _scene!.update();
   }
@@ -76,14 +80,16 @@ class _CubeGameScreenState extends State<CubeGameScreen>
     setState(() {
       final deltaY = details.localPosition.dy - _dragStartPos!.dy;
       final deltaX = details.localPosition.dx - _dragStartPos!.dx;
-      
+
       // Sensitivity for rotation (Y drag controls X rotation)
       final rotationSensitivity = 0.05;
-      final newRotationX = _dragStartRotationX + (deltaY * rotationSensitivity);
+      final newRotationX = (_dragStartRotationX + (deltaY * rotationSensitivity))
+          .clamp(_levelSettings.minRotation, _levelSettings.maxRotation);
 
-      // Sensitivity for sliding (X drag controls X position)
-      final slideSensitivity = 0.01; // Adjust this for more/less sliding movement
-      final newPositionX = _dragStartPositionX + (deltaX * slideSensitivity);
+      // Reduced sensitivity for sliding (X drag controls X position)
+      final slideSensitivity = 0.003;
+      final newPositionX = (_dragStartPositionX + (deltaX * slideSensitivity))
+          .clamp(_levelSettings.minX, _levelSettings.maxX);
 
       print('DRAG UPDATE - deltaX: $deltaX, deltaY: $deltaY, newRotX: $newRotationX, newPosX: $newPositionX');
 
@@ -160,18 +166,19 @@ class _CubeGameScreenState extends State<CubeGameScreen>
             scene.world.add(dial);
 
             _lever = Object(
-              fileName: 'assets/models/simple_lever.obj',
+              fileName: 'assets/models/simple_lever_transformed.obj',
             );
             _lever!.lighting = true;
-            // Centered at origin (0, 0, 0)
-            _lever!.position.setValues(0, 0, 0);
-            _lever!.scale.setValues(1, 1, 1);
+            // POSITIVE Y moves it down/back into the machine
+            _lever!.position.setValues(0, -1, -0.25);
+            _lever!.scale.setValues(1.875, 1.875, 1.875);
             _lever!.updateTransform();
             scene.world.add(_lever!);
 
             _leverPivot = _lever;
 
             scene.light.position.setValues(0, 50, 50);
+            
             scene.camera.zoom = 12;
             scene.camera.position.setValues(0, 12, 3);
             scene.camera.target.setValues(0, 0, 0);
