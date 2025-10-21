@@ -16,6 +16,7 @@ class _CubeGameScreenState extends State<CubeGameScreen>
   late Animation<double> _leverRotation;
   Object? _leverPivot;
   Object? _lever;
+  Object? _greenBulb;
   Scene? _scene;
   bool _isPulled = false;
 
@@ -26,7 +27,15 @@ class _CubeGameScreenState extends State<CubeGameScreen>
   double _dragStartRotationX = 0.0;
   double _dragStartPositionX = 0.0;
 
-  final LevelSettings _levelSettings = LevelSettings.level1;
+  int _currentLevelIndex = 0;
+  LevelSettings get _levelSettings => LevelSettings.levels[_currentLevelIndex];
+
+  // Wiggle detection
+  double _lastPositionX = 0.0;
+  int _directionChanges = 0;
+  int _lastDirectionSign = 0;
+  DateTime _lastDirectionChangeTime = DateTime.now();
+  DateTime _lastWiggleTime = DateTime.now().subtract(const Duration(seconds: 3)); // Allow immediate first wiggle
 
   @override
   void initState() {
@@ -64,6 +73,14 @@ class _CubeGameScreenState extends State<CubeGameScreen>
     _scene!.update();
   }
 
+  void _changeBulbColor(double red, double green, double blue) {
+    if (_greenBulb == null || _scene == null) return;
+
+    // Change the diffuse color of the bulb's material
+    _greenBulb!.mesh.material.diffuse.setValues(red, green, blue);
+    _scene!.update();
+  }
+
   void _onDragStart(DragStartDetails details) {
     setState(() {
       _isDragging = true;
@@ -82,7 +99,7 @@ class _CubeGameScreenState extends State<CubeGameScreen>
       final deltaX = details.localPosition.dx - _dragStartPos!.dx;
 
       // Sensitivity for rotation (Y drag controls X rotation)
-      final rotationSensitivity = 0.05;
+      final rotationSensitivity = 0.1;
       final newRotationX = (_dragStartRotationX + (deltaY * rotationSensitivity))
           .clamp(_levelSettings.minRotation, _levelSettings.maxRotation);
 
@@ -93,6 +110,48 @@ class _CubeGameScreenState extends State<CubeGameScreen>
 
       print('DRAG UPDATE - deltaX: $deltaX, deltaY: $deltaY, newRotX: $newRotationX, newPosX: $newPositionX');
 
+      // Detect wiggle - fast back-and-forth in X direction
+      final deltaFromLast = newPositionX - _lastPositionX;
+      if (deltaFromLast.abs() > 0.001) { // Only track significant movements
+        final currentDirectionSign = deltaFromLast > 0 ? 1 : -1;
+
+        if (_lastDirectionSign != 0 && currentDirectionSign != _lastDirectionSign) {
+          _directionChanges++;
+          final now = DateTime.now();
+          final timeSinceLastChange = now.difference(_lastDirectionChangeTime).inMilliseconds;
+
+          // If we've changed direction 3+ times rapidly (within 500ms between changes)
+          if (_directionChanges >= 3 && timeSinceLastChange < 500) {
+            final now = DateTime.now();
+            final timeSinceLastWiggle = now.difference(_lastWiggleTime).inMilliseconds;
+
+            // Require at least 2 seconds between successful wiggles
+            if (timeSinceLastWiggle >= 2000) {
+              print('WIGGLED');
+              _directionChanges = 0; // Reset after detecting wiggle
+              _lastWiggleTime = now; // Update last wiggle time
+
+              // Advance to next level
+              if (_currentLevelIndex < LevelSettings.levels.length - 1) {
+                _currentLevelIndex++;
+                print('Level advanced to $_currentLevelIndex');
+
+                // Update bulb brightness based on level settings
+                _changeBulbColor(0.0, _levelSettings.brightness, 0.0);
+              }
+            } else {
+              print('Wiggle detected but cooldown active (${2000 - timeSinceLastWiggle}ms remaining)');
+              _directionChanges = 0; // Reset to prevent continuous triggering
+            }
+          }
+
+          _lastDirectionChangeTime = now;
+        }
+
+        _lastDirectionSign = currentDirectionSign;
+        _lastPositionX = newPositionX;
+      }
+
       _updateLeverTransform(newRotationX, newPositionX);
     });
   }
@@ -101,6 +160,10 @@ class _CubeGameScreenState extends State<CubeGameScreen>
     setState(() {
       _isDragging = false;
       _dragStartPos = null;
+
+      // Reset wiggle detection
+      _directionChanges = 0;
+      _lastDirectionSign = 0;
 
       print('DRAG END - Final rotation X: $_currentRotationX, Position X: $_currentPositionX');
 
@@ -164,6 +227,18 @@ class _CubeGameScreenState extends State<CubeGameScreen>
             dial.scale.setValues(0.35, 0.35, 0.35);
             dial.updateTransform();
             scene.world.add(dial);
+
+            _greenBulb = Object(
+              fileName: 'assets/models/green_bulb._transforms_2.obj',
+            );
+            _greenBulb!.lighting = true;  // Enable lighting for shading
+            _greenBulb!.position.setValues(0.1, 1.15, 0);
+            _greenBulb!.scale.setValues(0.06, 0.06, 0.06);
+            _greenBulb!.updateTransform();
+            scene.world.add(_greenBulb!);
+
+            // Set initial brightness based on level 0
+            _changeBulbColor(0.0, _levelSettings.brightness, 0.0);
 
             _lever = Object(
               fileName: 'assets/models/simple_lever_transformed.obj',
